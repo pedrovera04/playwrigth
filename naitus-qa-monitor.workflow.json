@@ -19,7 +19,7 @@
       "parameters": {
         "assignments": {
           "assignments": [
-            { "id": "1", "name": "microserviceUrl", "value": "https://TU-SERVICIO.up.railway.app/scan", "type": "string" },
+            { "id": "1", "name": "microserviceUrl", "value": "https://playwrigth-production.up.railway.app/scan", "type": "string" },
             { "id": "2", "name": "qaApiKey", "value": "TU_QA_API_KEY", "type": "string" },
             { "id": "3", "name": "targetUrl", "value": "https://ugm-admision2023.naitus.cl/", "type": "string" },
             { "id": "4", "name": "siteName", "value": "ugm-admision2023", "type": "string" },
@@ -29,8 +29,8 @@
             { "id": "8", "name": "maxPages", "value": 12, "type": "number" },
             { "id": "9", "name": "maxDepth", "value": 1, "type": "number" },
             { "id": "11", "name": "notifyEmail", "value": "alexandrapiadiaz@gmail.com", "type": "string" },
-            { "id": "12", "name": "sheetId", "value": "TU_GOOGLE_SHEET_ID", "type": "string" },
-            { "id": "13", "name": "sheetTabName", "value": "Runs", "type": "string" }
+            { "id": "12", "name": "sheetId", "value": "1NCIA4FczhGsU5IlHPTMuYQUpUcNsJIh1m5KfHYXqYms", "type": "string" },
+            { "id": "13", "name": "sheetTabName", "value": "Sheet1", "type": "string" }
           ]
         },
         "options": {}
@@ -177,7 +177,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma el mensaje de notificación (texto plano, compatible con Slack/WhatsApp).\nconst d = $json;\nconst lines = [];\nlines.push(`*QA Naitus — ${d.siteName}*`);\nlines.push(`Issues nuevos: ${d.newCount} (total activos: ${d.totalIssues})`);\nlines.push(`Severidad: high=${d.summary.high || 0} medium=${d.summary.medium || 0} low=${d.summary.low || 0}`);\nlines.push('');\nfor (const iss of d.newIssues.slice(0, 15)) {\n  lines.push(`• [${iss.severity}] ${iss.type} — ${iss.page}${iss.viewport ? ' (' + iss.viewport + ')' : ''}`);\n  if (iss.text) lines.push(`   \"${iss.text}\"`);\n  if (iss.description) lines.push(`   ${iss.description}`);\n}\nif (d.newIssues.length > 15) lines.push(`… y ${d.newIssues.length - 15} más.`);\n\nreturn [{ json: { message: lines.join('\\n'), raw: d } }];"
+        "jsCode": "// Arma el mensaje de notificación: severidad alta primero, para que lo mas\n// importante se lea de entrada sin tener que revisar la lista completa.\nconst d = $json;\nconst rank = { high: 0, medium: 1, low: 2 };\nconst sorted = [...d.newIssues].sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9));\n\nconst lines = [];\nlines.push(`QA Naitus — ${d.siteName}`);\nlines.push(d.target);\nlines.push('');\nlines.push(`Issues nuevos: ${d.newCount} (total activos: ${d.totalIssues}, resueltos desde la corrida anterior: ${d.resolvedCount})`);\nlines.push(`Severidad: high=${d.summary.high || 0} medium=${d.summary.medium || 0} low=${d.summary.low || 0}`);\nlines.push('');\nfor (const iss of sorted.slice(0, 20)) {\n  lines.push(`[${iss.severity.toUpperCase()}] ${iss.type} — ${iss.page}${iss.viewport ? ' (' + iss.viewport + ')' : ''}`);\n  if (iss.text) lines.push(`   texto: \"${iss.text}\"`);\n  if (iss.hint) lines.push(`   ${iss.hint}`);\n  if (iss.description) lines.push(`   IA: ${iss.description}${iss.location ? ' (' + iss.location + ')' : ''}`);\n}\nif (sorted.length > 20) lines.push(`… y ${sorted.length - 20} más.`);\n\nreturn [{ json: { message: lines.join('\\n'), raw: d } }];"
       },
       "id": "79bff01a-dc1c-4a0f-be9a-fa82fce11a1f",
       "name": "Armar reporte",
