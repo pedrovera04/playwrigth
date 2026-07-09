@@ -115,3 +115,13 @@ test('flatten: cada issue tiene un id estable', async () => {
     assert.match(iss.id, /^iss_[0-9a-f]+$/);
   }
 });
+
+test('flatten: elementos idénticos sin distintivo (mismo src/type/viewport) generan ids únicos', async () => {
+  const issues = await scanFixture('repeated-icons.html');
+  const missingAlt = issues.filter((i) => i.type === 'image_missing_alt');
+  assert.equal(missingAlt.length, 3, 'las 3 imágenes repetidas deben detectarse');
+  const ids = missingAlt.map((i) => i.id);
+  assert.equal(new Set(ids).size, 3, 'cada una debe tener un id distinto');
+  assert.match(ids[1], /^iss_[0-9a-f]+_2$/);
+  assert.match(ids[2], /^iss_[0-9a-f]+_3$/);
+});

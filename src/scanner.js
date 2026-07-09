@@ -297,7 +297,18 @@ async function crawl(startUrl, opts) {
 // Aplana todo a una lista única de issues con id estable (hash) para dedup en baseline.
 function flatten(startUrl, pages) {
   const issues = [];
-  const push = (page, extra) => issues.push({ page, ...extra, id: hashIssue(page, extra) });
+  // Varios elementos (ej. iconos repetidos sin alt) pueden compartir el mismo
+  // hash base cuando no hay texto/src/href que los distinga. Se desambiguan
+  // con un sufijo por orden de aparicion, para que el id siga siendo unico
+  // dentro de la corrida y el dedup del baseline no los trate como uno solo.
+  const seenCounts = new Map();
+  const push = (page, extra) => {
+    const base = hashIssue(page, extra);
+    const n = (seenCounts.get(base) || 0) + 1;
+    seenCounts.set(base, n);
+    const id = n === 1 ? base : `${base}_${n}`;
+    issues.push({ page, ...extra, id });
+  };
 
   for (const p of pages) {
     if (p.error) { push(p.url, { type: 'page_load_error', severity: 'high', message: p.error }); continue; }
