@@ -81,14 +81,13 @@
     },
     {
       "parameters": {
-        "fieldToSplitOut": "screenshots",
-        "include": "noOtherFields",
-        "options": {}
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Un item por screenshot, con shape explícito (evita ambigüedades del\n// nodo Split Out al mezclar/renombrar campos). No arrastra 'issues' ni\n// el resto del payload del scan: cada item es liviano.\nconst shots = $json.screenshots || [];\nreturn shots.map((s) => ({ json: s }));"
       },
       "id": "c537b9bc-acf4-4c6a-85c5-8433b98e3e6b",
       "name": "Split screenshots",
-      "type": "n8n-nodes-base.splitOut",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [-160, -140]
     },
     {
@@ -97,7 +96,7 @@
         "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $('Config').item.json.geminiApiKey }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { text: 'Eres un QA de interfaces web. Analiza este screenshot full-page y devuelve EXCLUSIVAMENTE un JSON array (sin texto adicional ni markdown) de objetos {\"tipo\":..,\"descripcion\":..,\"ubicacion\":..,\"severidad\":\"high|medium|low\"} listando defectos visuales evidentes: elementos cortados, solapados, texto ilegible, desalineados o rotos. Si no hay defectos, responde []' }, { inline_data: { mime_type: 'image/jpeg', data: $json.screenshots.jpegBase64 } } ] }], generationConfig: { temperature: 0 } }) }}",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { text: 'Eres un QA de interfaces web. Analiza este screenshot full-page y devuelve EXCLUSIVAMENTE un JSON array (sin texto adicional ni markdown) de objetos {\"tipo\":..,\"descripcion\":..,\"ubicacion\":..,\"severidad\":\"high|medium|low\"} listando defectos visuales evidentes: elementos cortados, solapados, texto ilegible, desalineados o rotos. Si no hay defectos, responde []' }, { inline_data: { mime_type: 'image/jpeg', data: $json.jpegBase64 } } ] }], generationConfig: { temperature: 0 } }) }}",
         "options": { "timeout": 60000 }
       },
       "id": "f4f292a3-85c4-4d79-9298-1a067fdb60a0",
@@ -108,7 +107,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parseo defensivo de la respuesta de Gemini: quita fences de markdown,\n// intenta JSON.parse; si falla, ignora (no meter ruido en el reporte).\nconst raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '';\nconst cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nlet parsed = [];\ntry {\n  parsed = JSON.parse(cleaned);\n  if (!Array.isArray(parsed)) parsed = [];\n} catch (e) {\n  parsed = [];\n}\n\nconst shot = $('Split screenshots').item.json.screenshots || {};\n\nconst aiIssues = parsed.map((p) => {\n  const key = `${shot.page}|ai_visual|${shot.viewport}|${(p.descripcion || p.ubicacion || '').slice(0, 60)}`;\n  let h = 0;\n  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;\n  return {\n    id: 'ai_' + (h >>> 0).toString(16),\n    page: shot.page,\n    viewport: shot.viewport,\n    type: 'ai_visual',\n    severity: (p.severidad || 'low').toLowerCase(),\n    description: p.descripcion || '',\n    location: p.ubicacion || '',\n    source: 'gemini-2.0-flash',\n  };\n});\n\nreturn aiIssues.map((issue) => ({ json: { issue } }));"
+        "jsCode": "// Parseo defensivo de la respuesta de Gemini: quita fences de markdown,\n// intenta JSON.parse; si falla, ignora (no meter ruido en el reporte).\nconst raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '';\nconst cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nlet parsed = [];\ntry {\n  parsed = JSON.parse(cleaned);\n  if (!Array.isArray(parsed)) parsed = [];\n} catch (e) {\n  parsed = [];\n}\n\nconst shot = $('Split screenshots').item.json || {};\n\nconst aiIssues = parsed.map((p) => {\n  const key = `${shot.page}|ai_visual|${shot.viewport}|${(p.descripcion || p.ubicacion || '').slice(0, 60)}`;\n  let h = 0;\n  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;\n  return {\n    id: 'ai_' + (h >>> 0).toString(16),\n    page: shot.page,\n    viewport: shot.viewport,\n    type: 'ai_visual',\n    severity: (p.severidad || 'low').toLowerCase(),\n    description: p.descripcion || '',\n    location: p.ubicacion || '',\n    source: 'gemini-2.0-flash',\n  };\n});\n\nreturn aiIssues.map((issue) => ({ json: { issue } }));"
       },
       "id": "2f9cac57-6166-48f1-a214-cf5ab856f2d9",
       "name": "Parse IA",
