@@ -1,0 +1,233 @@
+{
+  "name": "Naitus QA Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 7 * * *" }
+          ]
+        }
+      },
+      "id": "47b48640-79ee-4cb6-ab29-2a6dfebeb788",
+      "name": "Schedule 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1120, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "1", "name": "microserviceUrl", "value": "https://TU-SERVICIO.up.railway.app/scan", "type": "string" },
+            { "id": "2", "name": "qaApiKey", "value": "TU_QA_API_KEY", "type": "string" },
+            { "id": "3", "name": "targetUrl", "value": "https://ugm-admision2023.naitus.cl/", "type": "string" },
+            { "id": "4", "name": "siteName", "value": "ugm-admision2023", "type": "string" },
+            { "id": "5", "name": "aiEnabled", "value": true, "type": "boolean" },
+            { "id": "6", "name": "geminiApiKey", "value": "TU_GEMINI_API_KEY", "type": "string" },
+            { "id": "7", "name": "notifyUrl", "value": "https://hooks.slack.com/services/TU/WEBHOOK/URL", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b898debf-30b0-4eb8-90e0-9e102855a01a",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-880, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.microserviceUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-api-key", "value": "={{ $json.qaApiKey }}" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.targetUrl, screenshots: $json.aiEnabled }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "bc35f86f-e136-4bee-a28a-e0577097c084",
+      "name": "Scan Playwright",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-640, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "70159921-8a55-4e93-939b-2ca96f23ee2f",
+              "leftValue": "={{ $('Config').item.json.aiEnabled }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "703cb114-2b66-4be4-9d9f-4264cbf9768c",
+      "name": "IA activada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-400, 0]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "screenshots",
+        "options": {}
+      },
+      "id": "c537b9bc-acf4-4c6a-85c5-8433b98e3e6b",
+      "name": "Split screenshots",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [-160, -140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $('Config').item.json.geminiApiKey }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { text: 'Eres un QA de interfaces web. Analiza este screenshot full-page y devuelve EXCLUSIVAMENTE un JSON array (sin texto adicional ni markdown) de objetos {\"tipo\":..,\"descripcion\":..,\"ubicacion\":..,\"severidad\":\"high|medium|low\"} listando defectos visuales evidentes: elementos cortados, solapados, texto ilegible, desalineados o rotos. Si no hay defectos, responde []' }, { inline_data: { mime_type: 'image/jpeg', data: $json.screenshots.jpegBase64 } } ] }], generationConfig: { temperature: 0 } }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "f4f292a3-85c4-4d79-9298-1a067fdb60a0",
+      "name": "Gemini Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [80, -140]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parseo defensivo de la respuesta de Gemini: quita fences de markdown,\n// intenta JSON.parse; si falla, ignora (no meter ruido en el reporte).\nconst raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '';\nconst cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nlet parsed = [];\ntry {\n  parsed = JSON.parse(cleaned);\n  if (!Array.isArray(parsed)) parsed = [];\n} catch (e) {\n  parsed = [];\n}\n\nconst shot = $('Split screenshots').item.json.screenshots || {};\n\nconst aiIssues = parsed.map((p) => {\n  const key = `${shot.page}|ai_visual|${shot.viewport}|${(p.descripcion || p.ubicacion || '').slice(0, 60)}`;\n  let h = 0;\n  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;\n  return {\n    id: 'ai_' + (h >>> 0).toString(16),\n    page: shot.page,\n    viewport: shot.viewport,\n    type: 'ai_visual',\n    severity: (p.severidad || 'low').toLowerCase(),\n    description: p.descripcion || '',\n    location: p.ubicacion || '',\n    source: 'gemini-2.0-flash',\n  };\n});\n\nreturn aiIssues.map((issue) => ({ json: { issue } }));"
+      },
+      "id": "2f9cac57-6166-48f1-a214-cf5ab856f2d9",
+      "name": "Parse IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, -140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Junta todos los issues de IA parseados (uno por screenshot) en un solo array\n// y los reconecta con el resultado del scan determinista.\nconst items = $input.all();\nconst aiIssues = items.map((it) => it.json.issue).filter(Boolean);\n\nconst scan = $('Scan Playwright').first().json;\nconst config = $('Config').first().json;\n\nreturn [{\n  json: {\n    ...scan,\n    siteName: config.siteName,\n    notifyUrl: config.notifyUrl,\n    aiIssues,\n  },\n}];"
+      },
+      "id": "382772a1-1888-4201-8984-9a8e8468d083",
+      "name": "Aggregate AI issues",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, -140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Rama sin IA: mismo shape que la rama con IA, pero aiIssues vacío.\nconst scan = $json;\nconst config = $('Config').first().json;\n\nreturn [{\n  json: {\n    ...scan,\n    siteName: config.siteName,\n    notifyUrl: config.notifyUrl,\n    aiIssues: [],\n  },\n}];"
+      },
+      "id": "d4facc5f-b514-4410-9da7-a9d5b8752e96",
+      "name": "Sin IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-160, 140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Capa 3 — Baseline: dedup contra corridas anteriores usando el static data\n// del workflow (persistencia simple para el MVP; Tarea 3 del roadmap la\n// reemplaza por PostgreSQL para multi-sitio y auditoría histórica).\nconst item = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nstore.baseline = store.baseline || {};\n\nconst siteKey = item.siteName || item.target;\nconst prevIds = new Set(store.baseline[siteKey] || []);\n\nconst allIssues = [...(item.issues || []), ...(item.aiIssues || [])];\nconst currentIds = allIssues.map((i) => i.id);\n\nconst newIssues = allIssues.filter((i) => !prevIds.has(i.id));\nconst resolvedIds = [...prevIds].filter((id) => !currentIds.includes(id));\n\nstore.baseline[siteKey] = currentIds;\n\nconst summary = allIssues.reduce((acc, i) => {\n  acc[i.severity] = (acc[i.severity] || 0) + 1;\n  return acc;\n}, {});\n\nreturn [{\n  json: {\n    target: item.target,\n    siteName: siteKey,\n    notifyUrl: item.notifyUrl,\n    scannedAt: item.scannedAt,\n    totalIssues: allIssues.length,\n    newCount: newIssues.length,\n    resolvedCount: resolvedIds.length,\n    summary,\n    newIssues,\n    allIssues,\n  },\n}];"
+      },
+      "id": "9ef23c67-659d-4998-8056-47cba81baa0e",
+      "name": "Merge + Baseline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "83ece5fe-3130-4eb6-9474-b3aa0dfa3ed4",
+              "leftValue": "={{ $json.newCount }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9874e67b-a090-4436-a538-45e25a24efc7",
+      "name": "Hay issues nuevos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1040, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el mensaje de notificación (texto plano, compatible con Slack/WhatsApp).\nconst d = $json;\nconst lines = [];\nlines.push(`*QA Naitus — ${d.siteName}*`);\nlines.push(`Issues nuevos: ${d.newCount} (total activos: ${d.totalIssues})`);\nlines.push(`Severidad: high=${d.summary.high || 0} medium=${d.summary.medium || 0} low=${d.summary.low || 0}`);\nlines.push('');\nfor (const iss of d.newIssues.slice(0, 15)) {\n  lines.push(`• [${iss.severity}] ${iss.type} — ${iss.page}${iss.viewport ? ' (' + iss.viewport + ')' : ''}`);\n  if (iss.text) lines.push(`   \"${iss.text}\"`);\n  if (iss.description) lines.push(`   ${iss.description}`);\n}\nif (d.newIssues.length > 15) lines.push(`… y ${d.newIssues.length - 15} más.`);\n\nreturn [{ json: { message: lines.join('\\n'), notifyUrl: d.notifyUrl, raw: d } }];"
+      },
+      "id": "79bff01a-dc1c-4a0f-be9a-fa82fce11a1f",
+      "name": "Armar reporte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, -140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.notifyUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.message }) }}",
+        "options": {}
+      },
+      "id": "197c555e-6fec-4e48-9644-eb5db3afebd4",
+      "name": "Notificar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1520, -140]
+    },
+    {
+      "parameters": {},
+      "id": "951ef20c-93d3-453b-b8a0-9e7fd9fc9c1e",
+      "name": "Sin novedades",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1280, 140]
+    }
+  ],
+  "connections": {
+    "Schedule 07:00": { "main": [[{ "node": "Config", "type": "main", "index": 0 }]] },
+    "Config": { "main": [[{ "node": "Scan Playwright", "type": "main", "index": 0 }]] },
+    "Scan Playwright": { "main": [[{ "node": "IA activada?", "type": "main", "index": 0 }]] },
+    "IA activada?": {
+      "main": [
+        [{ "node": "Split screenshots", "type": "main", "index": 0 }],
+        [{ "node": "Sin IA", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split screenshots": { "main": [[{ "node": "Gemini Vision", "type": "main", "index": 0 }]] },
+    "Gemini Vision": { "main": [[{ "node": "Parse IA", "type": "main", "index": 0 }]] },
+    "Parse IA": { "main": [[{ "node": "Aggregate AI issues", "type": "main", "index": 0 }]] },
+    "Aggregate AI issues": { "main": [[{ "node": "Merge + Baseline", "type": "main", "index": 0 }]] },
+    "Sin IA": { "main": [[{ "node": "Merge + Baseline", "type": "main", "index": 0 }]] },
+    "Merge + Baseline": { "main": [[{ "node": "Hay issues nuevos?", "type": "main", "index": 0 }]] },
+    "Hay issues nuevos?": {
+      "main": [
+        [{ "node": "Armar reporte", "type": "main", "index": 0 }],
+        [{ "node": "Sin novedades", "type": "main", "index": 0 }]
+      ]
+    },
+    "Armar reporte": { "main": [[{ "node": "Notificar", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "naitus-qa-monitor"
+  }
+}

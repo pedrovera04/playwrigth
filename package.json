@@ -1,0 +1,18 @@
+{
+  "name": "naitus-qa-monitor",
+  "version": "1.0.0",
+  "description": "Microservicio Playwright de QA automatizado para sitios (Naitus). Detecta links rotos, elementos cortados, imágenes que no cargan, overflow y accesibilidad, en múltiples viewports.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "scan": "node src/cli.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
