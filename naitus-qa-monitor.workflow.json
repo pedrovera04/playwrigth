@@ -25,7 +25,9 @@
             { "id": "4", "name": "siteName", "value": "ugm-admision2023", "type": "string" },
             { "id": "5", "name": "aiEnabled", "value": true, "type": "boolean" },
             { "id": "6", "name": "geminiApiKey", "value": "TU_GEMINI_API_KEY", "type": "string" },
-            { "id": "7", "name": "notifyUrl", "value": "https://hooks.slack.com/services/TU/WEBHOOK/URL", "type": "string" }
+            { "id": "7", "name": "notifyUrl", "value": "https://hooks.slack.com/services/TU/WEBHOOK/URL", "type": "string" },
+            { "id": "8", "name": "maxPages", "value": 12, "type": "number" },
+            { "id": "9", "name": "maxDepth", "value": 1, "type": "number" }
           ]
         },
         "options": {}
@@ -46,8 +48,8 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ url: $json.targetUrl, screenshots: $json.aiEnabled }) }}",
-        "options": { "timeout": 120000 }
+        "jsonBody": "={{ JSON.stringify({ url: $json.targetUrl, screenshots: $json.aiEnabled, maxPages: $json.maxPages, maxDepth: $json.maxDepth }) }}",
+        "options": { "timeout": 900000 }
       },
       "id": "bc35f86f-e136-4bee-a28a-e0577097c084",
       "name": "Scan Playwright",

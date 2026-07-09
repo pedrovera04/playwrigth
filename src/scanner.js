@@ -185,7 +185,11 @@ async function scanPage(context, url, viewports, wantScreenshots) {
   });
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+    // domcontentloaded es confiable incluso en sitios con actividad de red
+    // constante (analytics, chat widgets) que nunca dejan la red en "idle".
+    // networkidle se intenta aparte, best-effort, sin bloquear el scan si no llega.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
   } catch (e) {
     await page.close();
     return { url, error: `goto_failed: ${String(e).slice(0, 200)}`, viewports: [], links: [] };
