@@ -26,9 +26,11 @@
             { "id": "5", "name": "aiEnabled", "value": true, "type": "boolean" },
             { "id": "6", "name": "groqApiKey", "value": "TU_GROQ_API_KEY", "type": "string" },
             { "id": "10", "name": "groqModel", "value": "meta-llama/llama-4-scout-17b-16e-instruct", "type": "string" },
-            { "id": "7", "name": "notifyUrl", "value": "https://hooks.slack.com/services/TU/WEBHOOK/URL", "type": "string" },
             { "id": "8", "name": "maxPages", "value": 12, "type": "number" },
-            { "id": "9", "name": "maxDepth", "value": 1, "type": "number" }
+            { "id": "9", "name": "maxDepth", "value": 1, "type": "number" },
+            { "id": "11", "name": "notifyEmail", "value": "alexandrapiadiaz@gmail.com", "type": "string" },
+            { "id": "12", "name": "sheetId", "value": "TU_GOOGLE_SHEET_ID", "type": "string" },
+            { "id": "13", "name": "sheetTabName", "value": "Runs", "type": "string" }
           ]
         },
         "options": {}
@@ -121,7 +123,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Junta todos los issues de IA parseados (uno por screenshot) en un solo array\n// y los reconecta con el resultado del scan determinista.\nconst items = $input.all();\nconst aiIssues = items.map((it) => it.json.issue).filter(Boolean);\n\nconst scan = $('Scan Playwright').first().json;\nconst config = $('Config').first().json;\n\nreturn [{\n  json: {\n    ...scan,\n    siteName: config.siteName,\n    notifyUrl: config.notifyUrl,\n    aiIssues,\n  },\n}];"
+        "jsCode": "// Junta todos los issues de IA parseados (uno por screenshot) en un solo array\n// y los reconecta con el resultado del scan determinista.\nconst items = $input.all();\nconst aiIssues = items.map((it) => it.json.issue).filter(Boolean);\n\nconst scan = $('Scan Playwright').first().json;\nconst config = $('Config').first().json;\n\nreturn [{\n  json: {\n    ...scan,\n    siteName: config.siteName,\n    aiIssues,\n  },\n}];"
       },
       "id": "382772a1-1888-4201-8984-9a8e8468d083",
       "name": "Aggregate AI issues",
@@ -132,7 +134,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Rama sin IA: mismo shape que la rama con IA, pero aiIssues vacío.\nconst scan = $json;\nconst config = $('Config').first().json;\n\nreturn [{\n  json: {\n    ...scan,\n    siteName: config.siteName,\n    notifyUrl: config.notifyUrl,\n    aiIssues: [],\n  },\n}];"
+        "jsCode": "// Rama sin IA: mismo shape que la rama con IA, pero aiIssues vacío.\nconst scan = $json;\nconst config = $('Config').first().json;\n\nreturn [{\n  json: {\n    ...scan,\n    siteName: config.siteName,\n    aiIssues: [],\n  },\n}];"
       },
       "id": "d4facc5f-b514-4410-9da7-a9d5b8752e96",
       "name": "Sin IA",
@@ -143,7 +145,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Capa 3 — Baseline: dedup contra corridas anteriores usando el static data\n// del workflow (persistencia simple para el MVP; Tarea 3 del roadmap la\n// reemplaza por PostgreSQL para multi-sitio y auditoría histórica).\nconst item = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nstore.baseline = store.baseline || {};\n\nconst siteKey = item.siteName || item.target;\nconst prevIds = new Set(store.baseline[siteKey] || []);\n\nconst allIssues = [...(item.issues || []), ...(item.aiIssues || [])];\nconst currentIds = allIssues.map((i) => i.id);\n\nconst newIssues = allIssues.filter((i) => !prevIds.has(i.id));\nconst resolvedIds = [...prevIds].filter((id) => !currentIds.includes(id));\n\nstore.baseline[siteKey] = currentIds;\n\nconst summary = allIssues.reduce((acc, i) => {\n  acc[i.severity] = (acc[i.severity] || 0) + 1;\n  return acc;\n}, {});\n\nreturn [{\n  json: {\n    target: item.target,\n    siteName: siteKey,\n    notifyUrl: item.notifyUrl,\n    scannedAt: item.scannedAt,\n    totalIssues: allIssues.length,\n    newCount: newIssues.length,\n    resolvedCount: resolvedIds.length,\n    summary,\n    newIssues,\n    allIssues,\n  },\n}];"
+        "jsCode": "// Capa 3 — Baseline: dedup contra corridas anteriores usando el static data\n// del workflow (persistencia simple para el MVP; Tarea 3 del roadmap la\n// reemplaza por PostgreSQL para multi-sitio y auditoría histórica).\nconst item = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nstore.baseline = store.baseline || {};\n\nconst siteKey = item.siteName || item.target;\nconst prevIds = new Set(store.baseline[siteKey] || []);\n\nconst allIssues = [...(item.issues || []), ...(item.aiIssues || [])];\nconst currentIds = allIssues.map((i) => i.id);\n\nconst newIssues = allIssues.filter((i) => !prevIds.has(i.id));\nconst resolvedIds = [...prevIds].filter((id) => !currentIds.includes(id));\n\nstore.baseline[siteKey] = currentIds;\n\nconst summary = allIssues.reduce((acc, i) => {\n  acc[i.severity] = (acc[i.severity] || 0) + 1;\n  return acc;\n}, {});\n\nreturn [{\n  json: {\n    target: item.target,\n    siteName: siteKey,\n    scannedAt: item.scannedAt,\n    totalIssues: allIssues.length,\n    newCount: newIssues.length,\n    resolvedCount: resolvedIds.length,\n    summary,\n    newIssues,\n    allIssues,\n  },\n}];"
       },
       "id": "9ef23c67-659d-4998-8056-47cba81baa0e",
       "name": "Merge + Baseline",
@@ -175,7 +177,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Arma el mensaje de notificación (texto plano, compatible con Slack/WhatsApp).\nconst d = $json;\nconst lines = [];\nlines.push(`*QA Naitus — ${d.siteName}*`);\nlines.push(`Issues nuevos: ${d.newCount} (total activos: ${d.totalIssues})`);\nlines.push(`Severidad: high=${d.summary.high || 0} medium=${d.summary.medium || 0} low=${d.summary.low || 0}`);\nlines.push('');\nfor (const iss of d.newIssues.slice(0, 15)) {\n  lines.push(`• [${iss.severity}] ${iss.type} — ${iss.page}${iss.viewport ? ' (' + iss.viewport + ')' : ''}`);\n  if (iss.text) lines.push(`   \"${iss.text}\"`);\n  if (iss.description) lines.push(`   ${iss.description}`);\n}\nif (d.newIssues.length > 15) lines.push(`… y ${d.newIssues.length - 15} más.`);\n\nreturn [{ json: { message: lines.join('\\n'), notifyUrl: d.notifyUrl, raw: d } }];"
+        "jsCode": "// Arma el mensaje de notificación (texto plano, compatible con Slack/WhatsApp).\nconst d = $json;\nconst lines = [];\nlines.push(`*QA Naitus — ${d.siteName}*`);\nlines.push(`Issues nuevos: ${d.newCount} (total activos: ${d.totalIssues})`);\nlines.push(`Severidad: high=${d.summary.high || 0} medium=${d.summary.medium || 0} low=${d.summary.low || 0}`);\nlines.push('');\nfor (const iss of d.newIssues.slice(0, 15)) {\n  lines.push(`• [${iss.severity}] ${iss.type} — ${iss.page}${iss.viewport ? ' (' + iss.viewport + ')' : ''}`);\n  if (iss.text) lines.push(`   \"${iss.text}\"`);\n  if (iss.description) lines.push(`   ${iss.description}`);\n}\nif (d.newIssues.length > 15) lines.push(`… y ${d.newIssues.length - 15} más.`);\n\nreturn [{ json: { message: lines.join('\\n'), raw: d } }];"
       },
       "id": "79bff01a-dc1c-4a0f-be9a-fa82fce11a1f",
       "name": "Armar reporte",
@@ -185,18 +187,51 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $json.notifyUrl }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: $json.message }) }}",
+        "sendTo": "={{ $('Config').item.json.notifyEmail }}",
+        "subject": "=QA Naitus — {{ $json.raw.siteName }}: {{ $json.raw.newCount }} issues nuevos",
+        "emailType": "text",
+        "message": "={{ $json.message }}",
         "options": {}
       },
-      "id": "197c555e-6fec-4e48-9644-eb5db3afebd4",
-      "name": "Notificar",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1520, -140]
+      "id": "e77bdde3-caf7-4d72-8b2b-89d820defef0",
+      "name": "Enviar email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1520, -140],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_ME", "name": "Gmail account" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "={{ $('Config').item.json.sheetId }}", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "={{ $('Config').item.json.sheetTabName }}", "mode": "id" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $json.scannedAt }}",
+            "sitio": "={{ $json.siteName }}",
+            "total": "={{ $json.totalIssues }}",
+            "nuevos": "={{ $json.newCount }}",
+            "resueltos": "={{ $json.resolvedCount }}",
+            "high": "={{ $json.summary.high || 0 }}",
+            "medium": "={{ $json.summary.medium || 0 }}",
+            "low": "={{ $json.summary.low || 0 }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "4c022b9e-7bf2-412d-8955-11e4482e5249",
+      "name": "Log en Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1040, 220],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_ME", "name": "Google Sheets account" }
+      }
     },
     {
       "parameters": {},
@@ -222,14 +257,21 @@
     "Parse IA": { "main": [[{ "node": "Aggregate AI issues", "type": "main", "index": 0 }]] },
     "Aggregate AI issues": { "main": [[{ "node": "Merge + Baseline", "type": "main", "index": 0 }]] },
     "Sin IA": { "main": [[{ "node": "Merge + Baseline", "type": "main", "index": 0 }]] },
-    "Merge + Baseline": { "main": [[{ "node": "Hay issues nuevos?", "type": "main", "index": 0 }]] },
     "Hay issues nuevos?": {
       "main": [
         [{ "node": "Armar reporte", "type": "main", "index": 0 }],
         [{ "node": "Sin novedades", "type": "main", "index": 0 }]
       ]
     },
-    "Armar reporte": { "main": [[{ "node": "Notificar", "type": "main", "index": 0 }]] }
+    "Merge + Baseline": {
+      "main": [
+        [
+          { "node": "Hay issues nuevos?", "type": "main", "index": 0 },
+          { "node": "Log en Sheet", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Armar reporte": { "main": [[{ "node": "Enviar email", "type": "main", "index": 0 }]] }
   },
   "pinData": {},
   "meta": {

@@ -79,9 +79,10 @@ Schedule (diario 07:00)
         ├─ true  → Split screenshots → Groq Vision (HTTP) → Parse IA → Aggregate AI issues ─┐
         └─ false → Sin IA (passthrough) ────────────────────────────────────────────────────────┤
   → Merge + Baseline (Code)  # junta det + IA, dedup contra la corrida anterior (workflow static data)
-  → IF ¿hay issues nuevos?
-        → true  → Armar reporte (Code) → Notificar (HTTP → Slack/WhatsApp)
-        → false → Sin novedades (NoOp)
+        ├─ Log en Sheet (Google Sheets → Append)  # una fila por corrida, siempre
+        └─ IF ¿hay issues nuevos?
+              → true  → Armar reporte (Code) → Enviar email (Gmail)
+              → false → Sin novedades (NoOp)
 ```
 
 Editar el nodo **Config** con tus valores reales antes de activar el workflow:
@@ -96,15 +97,22 @@ Editar el nodo **Config** con tus valores reales antes de activar el workflow:
 | `groqApiKey` | API key de [Groq Console](https://console.groq.com/keys) (gratis) |
 | `groqModel` | modelo de visión, ej. `meta-llama/llama-4-scout-17b-16e-instruct` |
 | `maxPages` / `maxDepth` | tamaño del crawl (default 12 páginas, profundidad 1) |
-| `notifyUrl` | webhook de Slack (`hooks.slack.com/services/...`) o UltraMsg/Twilio para WhatsApp |
+| `notifyEmail` | correo que recibe el reporte cuando hay issues nuevos |
+| `sheetId` | ID del Google Sheet de bitácora (el valor entre `/d/` y `/edit` en la URL) |
+| `sheetTabName` | nombre de la pestaña del Sheet (default `Runs`) |
 
 **Notas sobre el workflow:**
 - El baseline (Capa 3) usa el *static data* del workflow de n8n — dedup funcional desde el día 1,
-  sin depender de Postgres. Persiste mientras no borres/reimportes el workflow. La Tarea 3 del
-  roadmap (`BRIEF-DESARROLLO.md` §10) lo reemplaza por PostgreSQL en Railway para multi-sitio real
-  y auditoría histórica (`qa_sites`, `qa_issues`, `qa_runs`).
-- `Notificar` envía `{"text": "..."}`, compatible directo con **Slack incoming webhooks**. Para
-  WhatsApp (UltraMsg/Twilio) ajustar el body en ese nodo al formato que pida el proveedor.
+  sin depender de Postgres. **Persiste mientras no borres/reimportes el workflow**: cada reimport
+  crea un workflow con otro ID y el baseline se reinicia (todo vuelve a contar como "nuevo") — es
+  normal durante desarrollo/pruebas, pero en producción evita reimportar sin necesidad. La Tarea 3
+  del roadmap (`BRIEF-DESARROLLO.md` §10) lo reemplaza por PostgreSQL en Railway para multi-sitio
+  real y auditoría histórica (`qa_sites`, `qa_issues`, `qa_runs`), inmune a este problema.
+- **Enviar email** usa el nodo Gmail de n8n (credencial OAuth2 propia, configurar en n8n →
+  Credentials). **Log en Sheet** usa el nodo Google Sheets (misma cuenta u otra); crea antes una
+  hoja con columnas `fecha, sitio, total, nuevos, resueltos, high, medium, low` y pon su ID en
+  `sheetId`. Ambos nodos referencian una credencial placeholder (`REPLACE_ME`) en el JSON — al
+  importar, n8n va a pedir que selecciones/crees la credencial real.
 - Multi-sitio (varios `targetUrl`) hoy = duplicar `Config → Scan Playwright → ...` por sitio, o
   reemplazar `Config` por un nodo que liste sitios y loopee (Tarea 4 del roadmap).
 
