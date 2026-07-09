@@ -2,7 +2,7 @@
 
 Microservicio de QA automatizado (Playwright) + orquestación n8n. Detecta errores deterministas
 (links rotos, elementos cortados, imágenes rotas, overflow, accesibilidad) en un sitio, en 3
-viewports, y opcionalmente complementa con IA de visión (Gemini) para defectos visuales. Solo
+viewports, y opcionalmente complementa con IA de visión (Groq, `llama-4-scout`) para defectos visuales. Solo
 notifica issues **nuevos** respecto de la corrida anterior (baseline).
 
 Ver `BRIEF-DESARROLLO.md` para la especificación completa.
@@ -76,7 +76,7 @@ Schedule (diario 07:00)
   → Config (Set)             # URLs, keys, viewports por sitio
   → Scan Playwright (HTTP)   # POST al microservicio en Railway
   → IF ¿IA activada?
-        ├─ true  → Split screenshots → Gemini Vision (HTTP) → Parse IA → Aggregate AI issues ─┐
+        ├─ true  → Split screenshots → Groq Vision (HTTP) → Parse IA → Aggregate AI issues ─┐
         └─ false → Sin IA (passthrough) ────────────────────────────────────────────────────────┤
   → Merge + Baseline (Code)  # junta det + IA, dedup contra la corrida anterior (workflow static data)
   → IF ¿hay issues nuevos?
@@ -92,8 +92,10 @@ Editar el nodo **Config** con tus valores reales antes de activar el workflow:
 | `qaApiKey` | mismo `QA_API_KEY` configurado en Railway |
 | `targetUrl` | sitio a monitorear |
 | `siteName` | nombre corto del sitio (clave del baseline) |
-| `aiEnabled` | `true`/`false` — activa la capa Gemini |
-| `geminiApiKey` | API key de [Google AI Studio](https://aistudio.google.com/) |
+| `aiEnabled` | `true`/`false` — activa la capa de IA |
+| `groqApiKey` | API key de [Groq Console](https://console.groq.com/keys) (gratis) |
+| `groqModel` | modelo de visión, ej. `meta-llama/llama-4-scout-17b-16e-instruct` |
+| `maxPages` / `maxDepth` | tamaño del crawl (default 12 páginas, profundidad 1) |
 | `notifyUrl` | webhook de Slack (`hooks.slack.com/services/...`) o UltraMsg/Twilio para WhatsApp |
 
 **Notas sobre el workflow:**
