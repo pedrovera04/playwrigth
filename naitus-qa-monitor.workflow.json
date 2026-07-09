@@ -82,6 +82,7 @@
     {
       "parameters": {
         "fieldToSplitOut": "screenshots",
+        "include": "noOtherFields",
         "options": {}
       },
       "id": "c537b9bc-acf4-4c6a-85c5-8433b98e3e6b",
