@@ -100,7 +100,7 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ model: $('Config').item.json.groqModel, temperature: 0, messages: [{ role: 'user', content: [ { type: 'text', text: 'Eres un QA de interfaces web. Analiza este screenshot full-page y devuelve EXCLUSIVAMENTE un JSON array (sin texto adicional ni markdown) de objetos {\"tipo\":..,\"descripcion\":..,\"ubicacion\":..,\"severidad\":\"high|medium|low\"} listando defectos visuales evidentes: elementos cortados, solapados, texto ilegible, desalineados o rotos. Si no hay defectos, responde []' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + $json.jpegBase64 } } ] }] }) }}",
-        "options": { "timeout": 60000 }
+        "options": { "timeout": 60000, "batching": { "batch": { "batchSize": 1, "batchInterval": 7000 } } }
       },
       "id": "f4f292a3-85c4-4d79-9298-1a067fdb60a0",
       "name": "Groq Vision",
